@@ -1,0 +1,1605 @@
+---
+title: "DDS"
+author: "Suwasna"
+date: "2024-02-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+#load required libraries
+library(ggplot2)
+library(tidyverse)
+library(Hmisc)
+library(cowplot)
+library(corrplot)
+library(factoextra)
+library(vcd)    
+library(FactoMineR)
+library(randomForest)    
+library(ROCR)
+library(ROSE)
+library(caret)
+```
+
+```{r}
+heart_prediction<-read.csv("heart.csv" , na.strings = c("NA", ""))
+```
+
+# 1. Data prep and cleaning
+```{r}
+str(heart_prediction) #view the structure 
+```
+
+##1.1 Renaming/recoding values
+
+```{r}
+
+table(heart_prediction$GeneralHealth)
+
+#rename values in GeneralHealth variable
+
+heart_prediction$GeneralHealth[is.na(heart_prediction$GeneralHealth)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$GeneralHealth)
+```
+
+```{r}
+table(heart_prediction$LastCheckupTime)
+
+#rename values in LastCheckupTime variable
+
+heart_prediction$LastCheckupTime[heart_prediction$LastCheckupTime == "Within past 2 years (1 year but less than 2 years ago)"] <- "Within past 2 years"
+
+heart_prediction$LastCheckupTime[heart_prediction$LastCheckupTime == "Within past 5 years (2 years but less than 5 years ago)"] <- "Within past 5 years"
+
+heart_prediction$LastCheckupTime[heart_prediction$LastCheckupTime == "Within past year (anytime less than 12 months ago)"] <- "Within past year"
+
+heart_prediction$LastCheckupTime[is.na(heart_prediction$LastCheckupTime)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$LastCheckupTime)
+```
+
+```{r}
+table(heart_prediction$RemovedTeeth)
+
+#rename values in RemovedTeeth variable
+heart_prediction$RemovedTeeth[heart_prediction$RemovedTeeth == "1 to 5"]<-"Some"
+heart_prediction$RemovedTeeth[heart_prediction$RemovedTeeth == "6 or more, but not all"] <- "Some"
+heart_prediction$RemovedTeeth[is.na(heart_prediction$RemovedTeeth)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$RemovedTeeth)
+```
+
+```{r}
+
+table(heart_prediction$SmokerStatus)
+
+#rename values in SmokerStatus variable
+heart_prediction$SmokerStatus[heart_prediction$SmokerStatus == "Current smoker - now smokes every day"]<-"Yes"
+heart_prediction$SmokerStatus[heart_prediction$SmokerStatus == "Current smoker - now smokes some days"]<-"Yes"
+heart_prediction$SmokerStatus[heart_prediction$SmokerStatus == "Never smoked"]<-"No"
+heart_prediction$SmokerStatus[is.na(heart_prediction$SmokerStatus)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$SmokerStatus)
+```
+
+```{r}
+
+table(heart_prediction$HadDiabetes)
+
+#rename values in HadDiabetes variable
+heart_prediction$HadDiabetes[heart_prediction$HadDiabetes == "No, pre-diabetes or borderline diabetes"]<-"No, pre-diabetes"
+heart_prediction$HadDiabetes[heart_prediction$HadDiabetes == "Yes, but only during pregnancy (female)"]<-"Yes"
+
+#check whether values have been changed
+table(heart_prediction$HadDiabetes)
+```
+
+```{r}
+
+table(heart_prediction$ECigaretteUsage)
+
+#rename values in ECigaretteUsage variable
+heart_prediction$ECigaretteUsage[heart_prediction$ECigaretteUsage == "Never used e-cigarettes in my entire life"]<-"No"
+heart_prediction$ECigaretteUsage[heart_prediction$ECigaretteUsage == "Not at all (right now)"]<-"No"
+heart_prediction$ECigaretteUsage[heart_prediction$ECigaretteUsage == "Use them every day"]<-"Yes"
+heart_prediction$ECigaretteUsage[heart_prediction$ECigaretteUsage == "Use them some days"]<-"Yes"
+heart_prediction$ECigaretteUsage[is.na(heart_prediction$ECigaretteUsage)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$ECigaretteUsage)
+```
+
+
+```{r}
+
+table(heart_prediction$TetanusLast10Tdap)
+
+#rename values in TetanusLast10Tdap variable
+heart_prediction$TetanusLast10Tdap[heart_prediction$TetanusLast10Tdap == "No, did not receive any tetanus shot in the past 10 years"] <- "No"
+heart_prediction$TetanusLast10Tdap[heart_prediction$TetanusLast10Tdap == "Yes, received Tdap "] <- "Yes"
+heart_prediction$TetanusLast10Tdap[heart_prediction$TetanusLast10Tdap == "Yes, received tetanus shot but not sure what type"] <- "Yes, but not sure what type"
+heart_prediction$TetanusLast10Tdap[heart_prediction$TetanusLast10Tdap == "Yes, received tetanus shot, but not Tdap"] <- "Yes, but not Tdap"
+heart_prediction$TetanusLast10Tdap[is.na(heart_prediction$TetanusLast10Tdap)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$TetanusLast10Tdap)
+```
+
+```{r}
+table(heart_prediction$CovidPos)
+
+# rename values in CovidPos variable 
+heart_prediction$CovidPos[heart_prediction$CovidPos == "Tested positive using home test without a health professional"] <- "Yes"
+
+#check whether values have been changed
+table(heart_prediction$CovidPos)
+```
+
+```{r}
+table(heart_prediction$RaceEthnicityCategory)
+
+# rename values in RaceEthnicityCategory variable 
+
+heart_prediction$RaceEthnicityCategory[heart_prediction$RaceEthnicityCategory == "White only, Non-Hispanic"] <- "White"
+heart_prediction$RaceEthnicityCategory[heart_prediction$RaceEthnicityCategory == "Black only, Non-Hispanic"] <- "Black"
+heart_prediction$RaceEthnicityCategory[heart_prediction$RaceEthnicityCategory == "Other race only, Non-Hispanic"] <- "Other"
+heart_prediction$RaceEthnicityCategory[heart_prediction$RaceEthnicityCategory == "Multiracial, Non-Hispanic"] <- "Multiracial"
+heart_prediction$RaceEthnicityCategory[is.na(heart_prediction$RaceEthnicityCategory)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$RaceEthnicityCategory)
+```
+
+```{r}
+
+table(heart_prediction$AgeCategory)
+
+# rename values in AgeCategory variable 
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 18 to 24"] <- "Young Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 25 to 29"] <- "Young Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 30 to 34"] <- "Young Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 35 to 39"] <- "Young Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 40 to 44"] <- "Middle Aged Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 45 to 49"] <- "Middle Aged Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 50 to 54"] <- "Middle Aged Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 55 to 59"] <- "Middle Aged Adults"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 60 to 64"] <- "Over-60s"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 65 to 69"] <- "Over-60s"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 70 to 74"] <- "Over-60s"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 75 to 79"] <- "Over-60s"
+heart_prediction$AgeCategory[heart_prediction$AgeCategory == "Age 80 or older"] <- "Over-80s"
+heart_prediction$AgeCategory[is.na(heart_prediction$AgeCategory)] <- "Unknown"
+
+#check whether values have been changed
+table(heart_prediction$AgeCategory)
+```
+```{r}
+# encode "Yes" to 1 and "No" to 0
+
+heart_prediction$PhysicalActivities <- recode(heart_prediction$PhysicalActivities, "No" = 0, "Yes" = 1)
+heart_prediction$HadHeartAttack <- recode(heart_prediction$HadHeartAttack, "No" = 0, "Yes" = 1)
+heart_prediction$HadAngina <- recode(heart_prediction$HadAngina, "No" = 0, "Yes" = 1)
+heart_prediction$HadStroke <- recode(heart_prediction$HadStroke, "No" = 0, "Yes" = 1)
+heart_prediction$HadSkinCancer <- recode(heart_prediction$HadSkinCancer, "No" = 0, "Yes" = 1)
+heart_prediction$HadCOPD <- recode(heart_prediction$HadCOPD, "No" = 0, "Yes" = 1)
+heart_prediction$HadDepressiveDisorder <- recode(heart_prediction$HadDepressiveDisorder, "No" = 0, "Yes" = 1)
+heart_prediction$HadDiabetes <- recode(heart_prediction$HadDiabetes, "No" = 0, "Yes" = 1)
+heart_prediction$HadKidneyDisease <- recode(heart_prediction$HadKidneyDisease, "No" = 0, "Yes" = 1)
+heart_prediction$HadArthritis <- recode(heart_prediction$HadArthritis, "No" = 0, "Yes" = 1)
+heart_prediction$HadAsthma <- recode(heart_prediction$HadAsthma, "No" = 0, "Yes" = 1)
+heart_prediction$DeafOrHardOfHearing <- recode(heart_prediction$DeafOrHardOfHearing, "No" = 0, "Yes" = 1)
+heart_prediction$BlindOrVisionDifficulty <- recode(heart_prediction$BlindOrVisionDifficulty, "No" = 0, "Yes" = 1)
+heart_prediction$DifficultyConcentrating <- recode(heart_prediction$DifficultyConcentrating, "No" = 0, "Yes" = 1)
+heart_prediction$DifficultyWalking <- recode(heart_prediction$DifficultyWalking, "No" = 0, "Yes" = 1)
+heart_prediction$DifficultyDressingBathing <- recode(heart_prediction$DifficultyDressingBathing, "No" = 0, "Yes" = 1)
+heart_prediction$DifficultyErrands <- recode(heart_prediction$DifficultyErrands, "No" = 0, "Yes" = 1)
+heart_prediction$ChestScan <- recode(heart_prediction$ChestScan, "No" = 0, "Yes" = 1)
+heart_prediction$AlcoholDrinkers <- recode(heart_prediction$AlcoholDrinkers, "No" = 0, "Yes" = 1)
+heart_prediction$HIVTesting <- recode(heart_prediction$HIVTesting, "No" = 0, "Yes" = 1)
+heart_prediction$FluVaxLast12 <- recode(heart_prediction$FluVaxLast12, "No" = 0, "Yes" = 1)
+heart_prediction$PneumoVaxEver <- recode(heart_prediction$PneumoVaxEver, "No" = 0, "Yes" = 1)
+heart_prediction$HighRiskLastYear <- recode(heart_prediction$HighRiskLastYear, "No" = 0, "Yes" = 1)
+heart_prediction$CovidPos <- recode(heart_prediction$CovidPos, "No" = 0, "Yes" = 1)
+```
+
+```{r}
+#convert variables into factors
+
+heart_prediction$Sex <- as.factor(heart_prediction$Sex)
+heart_prediction$State<- as.factor(heart_prediction$State)
+heart_prediction$GeneralHealth <- as.factor(heart_prediction$GeneralHealth)
+heart_prediction$LastCheckupTime <- as.factor(heart_prediction$LastCheckupTime)
+heart_prediction$PhysicalActivities <- as.factor(heart_prediction$PhysicalActivities)
+heart_prediction$RemovedTeeth <- as.factor(heart_prediction$RemovedTeeth)
+heart_prediction$HadHeartAttack <- as.factor(heart_prediction$HadHeartAttack)
+heart_prediction$HadAngina <- as.factor(heart_prediction$HadAngina)
+heart_prediction$HadStroke <- as.factor(heart_prediction$HadStroke)
+heart_prediction$HadSkinCancer <- as.factor(heart_prediction$HadSkinCancer)
+heart_prediction$HadCOPD <- as.factor(heart_prediction$HadCOPD)
+heart_prediction$HadDepressiveDisorder <- as.factor(heart_prediction$HadDepressiveDisorder)
+heart_prediction$HadKidneyDisease <- as.factor(heart_prediction$HadKidneyDisease)
+heart_prediction$HadDiabetes <- as.factor(heart_prediction$HadDiabetes)
+heart_prediction$HadArthritis <- as.factor(heart_prediction$HadArthritis)
+heart_prediction$HadAsthma <- as.factor(heart_prediction$HadAsthma)
+heart_prediction$DeafOrHardOfHearing <- as.factor(heart_prediction$DeafOrHardOfHearing)
+heart_prediction$BlindOrVisionDifficulty <- as.factor(heart_prediction$BlindOrVisionDifficulty)
+heart_prediction$DifficultyConcentrating <- as.factor(heart_prediction$DifficultyConcentrating)
+heart_prediction$DifficultyWalking <- as.factor(heart_prediction$DifficultyWalking)
+heart_prediction$DifficultyDressingBathing <- as.factor(heart_prediction$DifficultyDressingBathing)
+heart_prediction$DifficultyErrands <- as.factor(heart_prediction$DifficultyErrands)
+heart_prediction$SmokerStatus <- as.factor(heart_prediction$SmokerStatus)
+heart_prediction$ECigaretteUsage <- as.factor(heart_prediction$ECigaretteUsage)
+heart_prediction$ChestScan <- as.factor(heart_prediction$ChestScan)
+heart_prediction$RaceEthnicityCategory <- as.factor(heart_prediction$RaceEthnicityCategory)
+heart_prediction$AgeCategory <- as.factor(heart_prediction$AgeCategory)
+heart_prediction$AlcoholDrinkers <- as.factor(heart_prediction$AlcoholDrinkers)
+heart_prediction$HIVTesting <- as.factor(heart_prediction$HIVTesting)
+heart_prediction$FluVaxLast12 <- as.factor(heart_prediction$FluVaxLast12)
+heart_prediction$PneumoVaxEver <- as.factor(heart_prediction$PneumoVaxEver)
+heart_prediction$TetanusLast10Tdap <- as.factor(heart_prediction$TetanusLast10Tdap)
+heart_prediction$HighRiskLastYear <- as.factor(heart_prediction$HighRiskLastYear)
+heart_prediction$CovidPos <- as.factor(heart_prediction$CovidPos)
+
+str(heart_prediction) #check if the variables are converted to factors 
+```
+
+
+```{r}
+summary(heart_prediction) #summarise the data frame 
+```
+
+## 1.2 Remove duplicate rows
+```{r}
+#find duplicate rows
+heart_prediction_duplicated <- heart_prediction[duplicated(heart_prediction), ]
+heart_prediction_duplicated
+
+#remove duplicate rows 
+heart_prediction <- heart_prediction[!duplicated(heart_prediction), ]
+
+```
+
+
+## 1.3 Detection and removal of outliers
+```{r}
+# inspect the HeightInMeters variable 
+summary(heart_prediction$HeightInMeters)
+
+#create a boxplot of HeightInMeters variable
+Height_boxplot <- boxplot(heart_prediction$HeightInMeters)
+Height_boxplot
+
+#store the outliers in a vector
+outliers <- boxplot(heart_prediction$HeightInMeters, plot=FALSE)$out
+
+#remove outliers from updated_heart
+heart_prediction <- heart_prediction[-which(heart_prediction $HeightInMeters %in% outliers),]
+```
+
+
+```{r}
+# inspect WeightInKilograms 
+summary(heart_prediction$WeightInKilograms)
+
+#create a boxplot of WeightInKilograms 
+Weight_boxplot <- boxplot(heart_prediction$WeightInKilograms)
+Weight_boxplot
+
+#store the outliers in a vector
+out_weights <- boxplot(heart_prediction$WeightInKilograms, plot=FALSE)$out
+
+#remove outliers from updated_heart
+heart_prediction <- heart_prediction[-which(heart_prediction $WeightInKilograms %in% out_weights),]
+heart_prediction
+
+# inspect  BMI 
+summary(heart_prediction$BMI)
+
+#create a boxplot of BMI 
+BMI_boxplot <- boxplot(heart_prediction$BMI)
+BMI_boxplot
+
+#store the outliers in a vector
+out_BMI<- boxplot(heart_prediction$BMI, plot=FALSE)$out
+
+#remove outliers from updated_heart
+heart_prediction <- heart_prediction[-which(heart_prediction $BMI %in% out_BMI),]
+
+```
+
+```{r}
+# inspect SleepHours
+summary(heart_prediction$SleepHours)
+
+#create a boxplot of SleepHours 
+Sleep_boxplot <- boxplot(heart_prediction$SleepHours)
+Sleep_boxplot
+
+#store the outliers in a vector
+out_sleep<- boxplot(heart_prediction$SleepHours, plot=FALSE)$out
+
+#remove outliers from updated_heart
+heart_prediction <- heart_prediction[-which(heart_prediction $SleepHours %in% out_sleep),]
+
+```
+
+## 1.4 Impute/omit missing values
+
+```{r}
+#remove rows
+# Calculate proportion of missing values per row
+missing_prop <- rowMeans(is.na(heart_prediction))
+
+# Define threshold
+threshold <- 0.5
+
+# Keep rows where missing proportion is less than or equal to the threshold
+heart_prediction <- heart_prediction[missing_prop <= threshold, ]
+```
+
+```{r}
+# show a table of total NAs per variable
+NA_count <- apply(is.na(heart_prediction), 2, sum)
+NA_count
+```
+
+###Numerical variables
+
+
+```{r}
+#HeightInMeters
+# create new dataframe to store the imputed values for HeightInMeters
+imputed_height <- data.frame(
+  original = heart_prediction$HeightInMeters,
+  imputed_mean = impute(heart_prediction$HeightInMeters, mean),    # impute values for NA with the mean    
+  imputed_median = impute(heart_prediction$HeightInMeters, median), # impute values for NA with median
+  imputed_random = impute(heart_prediction$HeightInMeters, "random") # impute values for NA with random using hot deck
+)
+imputed_height
+```
+
+```{r}
+
+#visualise the "imputed_height" dataframe using histograms to check the impact of imputation on HeightInMeters's distribution
+
+h1 <- ggplot(imputed_height, aes(x = original)) +
+  geom_histogram(fill = "blue", color = "#000000", bins = 20) +
+ labs(x = "Max Mpg", y = "Count", title = "Original Distribution")+
+  theme_classic()
+
+h2 <- ggplot(imputed_height, aes(x = imputed_mean)) +
+  geom_histogram(fill = "green", color = "#000000", bins = 20) +
+  labs(x = "Imputed Mean", y = "Count", title = "Mean-imputed distribution") +
+  theme_classic()
+
+h3 <- ggplot(imputed_height, aes(x = imputed_median)) +
+  geom_histogram(fill = "brown", color = "#000000", bins = 20) +
+  labs(x = "Imputed Median", y = "Count", title = "Median-imputed distribution") +
+  theme_classic()
+
+h4 <- ggplot(imputed_height, aes(x = imputed_random)) +
+  geom_histogram(fill = "pink", color = "#000000", bins = 20) +
+  labs(x = "Imputed Random", y = "Count", title = "Hotdeck-imputed distribution") +
+  theme_classic()
+
+plot_grid(h1, h2, h3, h4, nrow = 2, ncol = 2)
+```
+
+```{r}
+#WeightInKilograms
+#create new dataframe to store the imputed values for WeightInKilograms
+imputed_weight <- data.frame(
+  original = heart_prediction$WeightInKilograms,
+  imputed_mean = impute(heart_prediction$WeightInKilograms, mean),    # impute values for NA with the mean    
+  imputed_median = impute(heart_prediction$WeightInKilograms, median), # impute values for NA with median
+  imputed_random = impute(heart_prediction$WeightInKilograms, "random") # impute values for NA with random using hot deck
+)
+imputed_weight
+```
+
+```{r}
+
+#visualise the "imputed_weight" dataframe using histograms to check the impact of imputation on WeightInKilograms's distribution
+
+h1 <- ggplot(imputed_weight, aes(x = original)) +
+  geom_histogram(fill = "blue", color = "#000000") +
+ labs(x = "Max Mpg", y = "Count", title = "Original Distribution")+
+  theme_classic()
+
+h2 <- ggplot(imputed_weight, aes(x = imputed_mean)) +
+  geom_histogram(fill = "green", color = "#000000") +
+  labs(x = "Imputed Mean", y = "Count", title = "Mean-imputed distribution") +
+  theme_classic()
+
+h3 <- ggplot(imputed_weight, aes(x = imputed_median)) +
+  geom_histogram(fill = "brown", color = "#000000") +
+  labs(x = "Imputed Median", y = "Count", title = "Median-imputed distribution") +
+  theme_classic()
+
+h4 <- ggplot(imputed_weight, aes(x = imputed_random)) +
+  geom_histogram(fill = "pink", color = "#000000") +
+  labs(x = "Imputed Random", y = "Count", title = "Hotdeck-imputed distribution") +
+  theme_classic()
+
+plot_grid(h1, h2, h3, h4, nrow = 2, ncol = 2)
+```
+
+```{r}
+#impute missing values for HeightInMeters and WeightInKilograms using hot deck
+
+heart_prediction$HeightInMeters <-impute(heart_prediction$HeightInMeters, "random")
+heart_prediction$WeightInKilograms <-impute(heart_prediction$WeightInKilograms, "random")
+
+```
+
+
+```{r}
+#impute missing values for BMI by calculating using HeightInMeters and WeightInKilograms
+
+heart_prediction$BMI[is.na(heart_prediction$BMI)] <-  heart_prediction$WeightInKilograms[is.na(heart_prediction$BMI)] / (heart_prediction$HeightInMeters[is.na(heart_prediction$BMI)] ^ 2)
+```
+
+```{r}
+#impute missing values using median
+
+#SleepHours 
+heart_prediction$SleepHours <-impute(heart_prediction$SleepHours, median)
+summary(heart_prediction$SleepHours)
+
+#MentalHealthDays
+heart_prediction$MentalHealthDays <-impute(heart_prediction$MentalHealthDays, median)
+summary(heart_prediction$MentalHealthDays)
+
+#PhysicalHealthDays
+heart_prediction$PhysicalHealthDays <-impute(heart_prediction$PhysicalHealthDays, median)
+summary(heart_prediction$PhysicalHealthDays)
+
+```
+
+###Categorical variables
+
+```{r}
+NA_count1 <- apply(is.na(heart_prediction), 2, sum)
+
+# the percentage of NA per variable
+NA_count_perc <- NA_count1 / dim(heart_prediction)[1] * 100
+NA_count_perc
+```
+```{r}
+#drop NAs from variables where missing values is less than 10% 
+
+heart_prediction <- heart_prediction[complete.cases(heart_prediction$PhysicalHealthDays,
+                                              heart_prediction$MentalHealthDays,
+                                              heart_prediction$PhysicalActivities,heart_prediction$SleepHours,
+                                              heart_prediction$HadDiabetes,
+                                              heart_prediction$DeafOrHardOfHearing,heart_prediction$BlindOrVisionDifficulty,
+                                              heart_prediction$DifficultyConcentrating,heart_prediction$DifficultyWalking,
+                                              heart_prediction$HadHeartAttack,
+                                              heart_prediction$HadAngina,heart_prediction$HadStroke,
+                                              heart_prediction$HadAsthma,heart_prediction$HadSkinCancer,
+                                              heart_prediction$HadCOPD,heart_prediction$HadDepressiveDisorder,
+                                              heart_prediction$HadKidneyDisease,heart_prediction$HadArthritis,
+                                              heart_prediction$DifficultyDressingBathing,
+                                              heart_prediction$RaceEthnicityCategory, heart_prediction$AgeCategory,
+                                              heart_prediction$BlindOrVisionDifficulty, heart_prediction$DifficultyConcentrating,
+                                              heart_prediction$DifficultyWalking,heart_prediction$DifficultyErrands
+                                              
+                                              ),]
+
+#total rows after removing NAs 
+nrow(heart_prediction)
+
+```
+
+
+```{r}
+#find columns with missing values
+columns_with_missing <- colnames(heart_prediction)[colSums(is.na(heart_prediction)) > 0]
+columns_with_missing
+```
+
+```{r}
+
+#drop NAs from the above variables since there is a high no of missing values and imputing them would produce bias
+
+heart_prediction <- heart_prediction[complete.cases(heart_prediction$AlcoholDrinkers,heart_prediction$HIVTesting,
+                                              heart_prediction$FluVaxLast12,heart_prediction$PneumoVaxEver,
+                                              heart_prediction$HighRiskLastYear,heart_prediction$CovidPos,
+                                              heart_prediction$ChestScan
+),]
+#total rows after removing NAs 
+sum(is.na(heart_prediction))
+```
+
+
+## 1.5 Sampling 
+```{r}
+set.seed(123)
+
+#selecting 10% of the dataset
+# random sample of 40000 rows 
+sample_idx <- sample(nrow(heart_prediction), 40000)
+
+# create new data frame using the sampled rows 
+updated_heart <- heart_prediction[sample_idx,]
+updated_heart
+
+# Assuming df is your DataFrame
+# Replace "your_file_path.csv" with the path where you want to save the CSV file
+#write.csv(updated_heart, "heart_attack_HPCI.csv", row.names = FALSE)
+
+```
+
+
+# 2. EDA
+
+## 2.1. Univariate analysis
+
+### 2.1.1 Numerical variables
+
+```{r}
+#HeightInMeters
+ggplot(updated_heart, aes(HeightInMeters)) +
+  geom_histogram(fill = "pink", color = "#000000",bins = 20) +
+ labs(x = "HeightInMeters", y = "Count", title = "Histogram for HeightInMeters")+
+  theme_classic()
+
+#WeightInKilograms
+ggplot(updated_heart, aes(WeightInKilograms)) +
+  geom_histogram(fill = "pink", color = "#000000",bins = 20) +
+ labs(x = "WeightInKilograms", y = "Count", title = "Histogram for WeightInKilograms")+
+  theme_classic()
+
+#BMI
+ggplot(updated_heart, aes(BMI)) +
+  geom_histogram(fill = "pink", color = "#000000",bins = 20) +
+ labs(x = "BMI", y = "Count", title = "Histogram for BMI")+
+  theme_classic()
+
+#SleepHours
+ggplot(updated_heart, aes(SleepHours)) +
+  geom_histogram(fill = "pink", color = "#000000",bins = 10) +
+ labs(x = "SleepHours", y = "Count", title = "Histogram for SleepHours")+
+  theme_classic()
+
+#PhysicalHealthDays
+ggplot(updated_heart, aes(PhysicalHealthDays)) +
+  geom_histogram(fill = "pink", color = "#000000",bins = 10) +
+ labs(x = "PhysicalHealthDays", y = "Count", title = "Histogram for PhysicalHealthDays")+
+  theme_classic()
+
+#MentalHealthDays
+ggplot(updated_heart, aes(MentalHealthDays)) +
+  geom_histogram(fill = "pink", color = "#000000",bins = 10) +
+ labs(x = "MentalHealthDays", y = "Count", title = "Histogram for MentalHealthDays")+
+  theme_classic()
+
+
+
+```
+Height, weight, BMI and sleep hours have a normal distribution.Physical and mental health days are positively skewed.
+
+### 2.2.1 Categorical Variables 
+```{r}
+
+#State
+ggplot(updated_heart,aes(x=State, fill=State) ) +  
+  geom_bar() +
+  ggtitle("State") +
+  xlab("State") +
+   geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#Sex
+ggplot(updated_heart, aes(x=Sex, fill=Sex)) + 
+  geom_bar() +
+  ggtitle("Sex") +
+  xlab("Sex") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+
+#GeneralHealth
+ggplot(updated_heart,aes(x=GeneralHealth, fill=GeneralHealth)) + 
+  geom_bar() +
+  ggtitle("General Health") +
+  xlab("Rating") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+
+#LastCheckupTime
+ggplot(updated_heart,aes(x=LastCheckupTime, fill=LastCheckupTime) ) + 
+  geom_bar() +
+  ggtitle("LastCheckupTime") +
+  xlab("LastCheckupTime") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+
+```
+
+
+```{r}
+#drop State column due to noise
+updated_heart = subset(updated_heart, select = -c(State))
+```
+
+```{r}
+#PhysicalActivities
+ggplot(updated_heart,aes(x=PhysicalActivities, fill=PhysicalActivities) ) + 
+  geom_bar() +
+  ggtitle("PhysicalActivities") +
+  xlab("PhysicalActivities") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HadHeartAttack
+ggplot(updated_heart,aes(x=HadHeartAttack, fill=HadHeartAttack) ) + 
+  geom_bar() +
+  ggtitle("HadHeartAttack") +
+  xlab("HadHeartAttack") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HadAngina
+ggplot(updated_heart,aes(x= HadAngina, fill=HadAngina) ) + 
+  geom_bar() +
+  ggtitle("HadAngina") +
+  xlab("HadAngina") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r} 
+#HadAsthma
+ggplot(updated_heart,aes(x=HadAsthma, fill=HadAsthma) ) + 
+  geom_bar() +
+  ggtitle("HadAsthma") +
+  xlab("HadAsthma") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HadSkinCancer
+ggplot(updated_heart,aes(x=HadSkinCancer, fill=HadSkinCancer) ) + 
+  geom_bar() +
+  ggtitle("HadSkinCancer") +
+  xlab("HadSkinCancer") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HadCOPD
+ggplot(updated_heart,aes(x=HadCOPD, fill=HadCOPD) ) + 
+  geom_bar() +
+  ggtitle("HadCOPD") +
+  xlab("HadCOPD") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r}
+#HadDepressiveDisorder
+ggplot(updated_heart,aes(x=HadDepressiveDisorder, fill=HadDepressiveDisorder) ) + 
+  geom_bar() +
+  ggtitle("HadDepressiveDisorder") +
+  xlab("HadDepressiveDisorder") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HadKidneyDisease
+ggplot(updated_heart,aes(x=HadKidneyDisease, fill= HadKidneyDisease) ) + 
+  geom_bar() +
+  ggtitle("HadKidneyDisease") +
+  xlab("HadKidneyDisease") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HadArthritis
+ggplot(updated_heart,aes(x=HadArthritis, fill=HadArthritis) ) + 
+  geom_bar() +
+  ggtitle("HadArthritis") +
+  xlab("HadArthritis") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r} 
+#HadDiabetes
+ggplot(updated_heart,aes(x=HadDiabetes, fill=HadDiabetes) ) + 
+  geom_bar() +
+  ggtitle("HadDiabetes") +
+  xlab("HadDiabetes") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#DeafOrHardOfHearing
+ggplot(updated_heart,aes(x=DeafOrHardOfHearing, fill=DeafOrHardOfHearing) ) + 
+  geom_bar() +
+  ggtitle("DeafOrHardOfHearing") +
+  xlab("DeafOrHardOfHearing") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#BlindOrVisionDifficulty
+ggplot(updated_heart,aes(x=BlindOrVisionDifficulty, fill=BlindOrVisionDifficulty) ) + 
+  geom_bar() +
+  ggtitle("BlindOrVisionDifficulty") +
+  xlab("BlindOrVisionDifficulty") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r} 
+#DifficultyConcentrating
+ggplot(updated_heart,aes(x=DifficultyConcentrating, fill=DifficultyConcentrating) ) + 
+  geom_bar() +
+  ggtitle("DifficultyConcentrating") +
+  xlab("DifficultyConcentrating") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#DifficultyWalking
+ggplot(updated_heart,aes(x=DifficultyWalking, fill=DifficultyWalking) ) + 
+  geom_bar() +
+  ggtitle("DifficultyWalking") +
+  xlab("DifficultyWalking") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#DifficultyDressingBathing
+ggplot(updated_heart,aes(x=DifficultyDressingBathing, fill=DifficultyDressingBathing) ) + 
+  geom_bar() +
+  ggtitle("DifficultyDressingBathing") +
+  xlab("DifficultyDressingBathing") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#DifficultyErrands
+ggplot(updated_heart,aes(x=DifficultyErrands, fill=DifficultyErrands) ) + 
+  geom_bar() +
+  ggtitle("DifficultyErrands") +
+  xlab("DifficultyErrands") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r} 
+#SmokerStatus
+ggplot(updated_heart,aes(x=SmokerStatus, fill=SmokerStatus) ) + 
+  geom_bar() +
+  ggtitle("SmokerStatus") +
+  xlab("SmokerStatus") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#ECigaretteUsage
+ggplot(updated_heart,aes(x=ECigaretteUsage, fill=ECigaretteUsage) ) + 
+  geom_bar() +
+  ggtitle("ECigaretteUsage") +
+  xlab("ECigaretteUsage") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#ChestScan
+ggplot(updated_heart,aes(x=ChestScan, fill=ChestScan) ) + 
+  geom_bar() +
+  ggtitle("ChestScan") +
+  xlab("ChestScan") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#RaceEthnicityCategory
+ggplot(updated_heart,aes(x=RaceEthnicityCategory, fill=RaceEthnicityCategory) ) + 
+  geom_bar() +
+  ggtitle("RaceEthnicityCategory") +
+  xlab("RaceEthnicityCategory") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r}
+
+#AgeCategory
+ggplot(updated_heart,aes(x=AgeCategory, fill=AgeCategory) ) +  
+  geom_bar() +
+  ggtitle("AgeCategory") +
+  xlab("AgeCategory") +
+   geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ 
+#AlcoholDrinkers  
+ggplot(updated_heart,aes(x=AlcoholDrinkers, fill =AlcoholDrinkers) ) + 
+  geom_bar() +
+  ggtitle("AlcoholDrinkers") +
+  xlab("AlcoholDrinkers") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#HIVTesting
+ggplot(updated_heart,aes(x=HIVTesting, fill=HIVTesting) ) + 
+  geom_bar() +
+  ggtitle("HIVTesting") +
+  xlab("HIVTesting") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r} 
+#FluVaxLast12
+ggplot(updated_heart,aes(x=FluVaxLast12, fill=FluVaxLast12) ) + 
+  geom_bar() +
+  ggtitle("FluVaxLast12") +
+  xlab("FluVaxLast12") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#PneumoVaxEver
+ggplot(updated_heart,aes(x=PneumoVaxEver, fill=PneumoVaxEver) ) + 
+  geom_bar() +
+  ggtitle("PneumoVaxEver") +
+  xlab("PneumoVaxEver") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#TetanusLast10Tdap
+ggplot(updated_heart,aes(x=TetanusLast10Tdap, fill=TetanusLast10Tdap) ) + 
+  geom_bar() +
+  ggtitle("TetanusLast10Tdap") +
+  xlab("TetanusLast10Tdap") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+```{r} 
+#HighRiskLastYear
+ggplot(updated_heart,aes(x=HighRiskLastYear, fill=HighRiskLastYear) ) + 
+  geom_bar() +
+  ggtitle("HighRiskLastYear") +
+  xlab("HighRiskLastYear") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+ 
+#CovidPos
+ggplot(updated_heart,aes(x=CovidPos, fill=CovidPos) ) + 
+  geom_bar() +
+  ggtitle("CovidPos") +
+  xlab("CovidPos") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+
+
+
+## 2.2 Multivariate Analysis
+
+
+### 2.2.1 Categorical Analysis
+
+```{r}
+#Sex vs Heart Attack
+ggplot(updated_heart, aes(x = Sex, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("Sex vs HadHeartAttack") +
+  xlab("Sex") +
+  ylab("Count") +
+  theme()
+
+#GeneralHealth vs Heart Attack
+ggplot(updated_heart, aes(x = GeneralHealth, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("GeneralHealth vs HadHeartAttack") +
+  xlab("GeneralHealth") +
+  ylab("Count") +
+  theme()
+
+#LastCheckupTime vs Heart Attack
+ggplot(updated_heart, aes(x = LastCheckupTime, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("LastCheckupTime vs HadHeartAttack") +
+  xlab("LastCheckupTime") +
+  ylab("Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+#RemovedTeeth vs Heart Attack
+ggplot(updated_heart, aes(x = RemovedTeeth, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("RemovedTeeth vs HadHeartAttack") +
+  xlab("RemovedTeeth") +
+  ylab("Count") +
+  theme()
+
+#SmokerStatus vs Heart Attack
+ggplot(updated_heart, aes(x = SmokerStatus, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("SmokerStatus vs HadHeartAttack") +
+  xlab("SmokerStatus") +
+  ylab("Count") +
+  theme()
+
+#ECigaretteUsage vs Heart Attack
+ggplot(updated_heart, aes(x = ECigaretteUsage, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("ECigaretteUsage vs HadHeartAttack") +
+  xlab("ECigaretteUsage") +
+  ylab("Count") +
+  theme()
+```
+
+```{r}
+#RaceEthnicityCategory vs Heart Attack
+ggplot(updated_heart, aes(x = RaceEthnicityCategory, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("RaceEthnicityCategory vs HadHeartAttack") +
+  xlab("RaceEthnicityCategory") +
+  ylab("Count") +
+  theme()
+
+#AgeCategory vs Heart Attack
+ggplot(updated_heart, aes(x = AgeCategory, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("AgeCategory vs HadHeartAttack") +
+  xlab("AgeCategory") +
+  ylab("Count") +
+  theme()
+
+#TetanusLast10Tdap vs Heart Attack
+
+ggplot(updated_heart, aes(x = TetanusLast10Tdap, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("TetanusLast10Tdap vs HadHeartAttack") +
+  xlab("TetanusLast10Tdap") +
+  ylab("Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#AlcoholDrinkers vs Heart Attack
+ggplot(updated_heart, aes(x = AlcoholDrinkers, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("AlcoholDrinkers vs HadHeartAttack") +
+  xlab("AlcoholDrinkers") +
+  ylab("Count") +
+  theme()
+
+
+#HadArthritis vs Heart Attack
+ggplot(updated_heart, aes(x = HadArthritis, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadArthritis vs HadHeartAttack") +
+  xlab("HadArthritis") +
+  ylab("Count") +
+  theme()
+
+#HadAsthma vs Heart Attack
+ggplot(updated_heart, aes(x = HadAsthma, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadAsthma vs HadHeartAttack") +
+  xlab("HadAsthma") +
+  ylab("Count") +
+  theme()
+
+```
+
+```{r}
+#HadKidneyDisease vs Heart Attack
+ggplot(updated_heart, aes(x = HadKidneyDisease, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadKidneyDisease vs HadHeartAttack") +
+  xlab("HadKidneyDisease") +
+  ylab("Count") +
+  theme()
+
+#HadDiabetes vs Heart Attack
+ggplot(updated_heart, aes(x = HadDiabetes, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadDiabetes vs HadHeartAttack") +
+  xlab("HadDiabetes") +
+  ylab("Count") +
+  theme()
+
+#HadDepressiveDisorder vs Heart Attack
+ggplot(updated_heart, aes(x = HadDepressiveDisorder, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadDepressiveDisorder vs HadHeartAttack") +
+  xlab("HadDepressiveDisorder") +
+  ylab("Count") +
+  theme()
+```
+
+```{r}
+#HadCOPD vs Heart Attack
+ggplot(updated_heart, aes(x = HadCOPD, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadCOPD vs HadHeartAttack") +
+  xlab("HadCOPD") +
+  ylab("Count") +
+  theme()
+
+#HadSkinCancer vs Heart Attack
+ggplot(updated_heart, aes(x = HadSkinCancer, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadSkinCancer vs HadHeartAttack") +
+  xlab("HadSkinCancer") +
+  ylab("Count") +
+  theme()
+
+#HadStroke vs Heart Attack
+ggplot(updated_heart, aes(x = HadStroke, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadStroke vs HadHeartAttack") +
+  xlab("HadStroke") +
+  ylab("Count") +
+  theme()
+```
+
+```{r}
+#HadAngina vs Heart Attack
+ggplot(updated_heart, aes(x = HadAngina, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HadAngina vs HadHeartAttack") +
+  xlab("HadAngina") +
+  ylab("Count") +
+  theme()
+
+
+#DeafOrHardOfHearing vs Heart Attack
+ggplot(updated_heart, aes(x = DeafOrHardOfHearing, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("DeafOrHardOfHearing vs HadHeartAttack") +
+  xlab("DeafOrHardOfHearing") +
+  ylab("Count") +
+  theme()
+
+#BlindOrVisionDifficulty vs Heart Attack
+ggplot(updated_heart, aes(x = BlindOrVisionDifficulty, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("BlindOrVisionDifficulty vs HadHeartAttack") +
+  xlab("BlindOrVisionDifficulty") +
+  ylab("Count") +
+  theme()
+```
+
+```{r}
+#DifficultyErrands vs Heart Attack
+ggplot(updated_heart, aes(x = DifficultyErrands, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("DifficultyErrands vs HadHeartAttack") +
+  xlab("DifficultyErrands") +
+  ylab("Count") +
+  theme()
+
+#DifficultyDressingBathing vs Heart Attack
+ggplot(updated_heart, aes(x = DifficultyDressingBathing, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("DifficultyDressingBathing vs HadHeartAttack") +
+  xlab("DifficultyDressingBathing") +
+  ylab("Count") +
+  theme()
+
+#DifficultyWalking vs Heart Attack
+ggplot(updated_heart, aes(x = DifficultyWalking, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("DifficultyWalking vs HadHeartAttack") +
+  xlab("DifficultyWalking") +
+  ylab("Count") +
+  theme()
+
+#DifficultyConcentrating vs Heart Attack
+ggplot(updated_heart, aes(x = DifficultyConcentrating, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("DifficultyConcentrating vs HadHeartAttack") +
+  xlab("DifficultyConcentrating") +
+  ylab("Count") +
+  theme()
+```
+
+```{r}
+#ChestScan vs Heart Attack
+ggplot(updated_heart, aes(x = ChestScan, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("ChestScan vs HadHeartAttack") +
+  xlab("ChestScan") +
+  ylab("Count") +
+  theme()
+
+#HIVTesting vs Heart Attack
+ggplot(updated_heart, aes(x = HIVTesting, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HIVTesting vs HadHeartAttack") +
+  xlab("HIVTesting") +
+  ylab("Count") +
+  theme()
+
+#FluVaxLast12 vs Heart Attack
+ggplot(updated_heart, aes(x = FluVaxLast12, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("FluVaxLast12 vs HadHeartAttack") +
+  xlab("FluVaxLast12") +
+  ylab("Count") +
+  theme()
+```
+
+```{r}
+#PneumoVaxEver vs Heart Attack
+ggplot(updated_heart, aes(x = PneumoVaxEver, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("PneumoVaxEver vs HadHeartAttack") +
+  xlab("PneumoVaxEver") +
+  ylab("Count") +
+  theme()
+
+#HighRiskLastYear vs Heart Attack
+ggplot(updated_heart, aes(x = HighRiskLastYear, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("HighRiskLastYear vs HadHeartAttack") +
+  xlab("HighRiskLastYear") +
+  ylab("Count") +
+  theme()
+
+#CovidPos vs Heart Attack
+ggplot(updated_heart, aes(x = CovidPos, fill = HadHeartAttack)) +  
+  geom_bar(position = "dodge") +
+  ggtitle("CovidPos vs HadHeartAttack") +
+  xlab("CovidPos") +
+  ylab("Count") +
+  theme()
+
+```
+
+### 2.2 Chi-squared test
+
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and Sex
+table(updated_heart$HadHeartAttack, updated_heart$Sex)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$Sex))
+```
+ 
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and GeneralHealth
+table(updated_heart$HadHeartAttack, updated_heart$GeneralHealth)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$GeneralHealth))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and PhysicalActivities
+table(updated_heart$HadHeartAttack, updated_heart$PhysicalActivities)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$PhysicalActivities))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and RemovedTeeth
+table(updated_heart$HadHeartAttack, updated_heart$RemovedTeeth)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$RemovedTeeth))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadAngina
+table(updated_heart$HadHeartAttack, updated_heart$HadAngina)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadAngina))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadStroke
+table(updated_heart$HadHeartAttack, updated_heart$HadStroke)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadStroke))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadSkinCancer
+table(updated_heart$HadHeartAttack, updated_heart$HadSkinCancer)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadSkinCancer))
+```
+ 
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadDepressiveDisorder
+table(updated_heart$HadHeartAttack, updated_heart$HadDepressiveDisorder)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadDepressiveDisorder))
+```
+
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadCOPD
+table(updated_heart$HadHeartAttack, updated_heart$HadCOPD)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadCOPD))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadKidneyDisease
+table(updated_heart$HadHeartAttack, updated_heart$HadKidneyDisease)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadKidneyDisease))
+```
+
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadArthritis
+table(updated_heart$HadHeartAttack, updated_heart$HadArthritis)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadArthritis))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HadDiabetes
+table(updated_heart$HadHeartAttack, updated_heart$HadDiabetes)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HadDiabetes))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and DifficultyConcentrating
+table(updated_heart$HadHeartAttack, updated_heart$DifficultyConcentrating)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$DifficultyConcentrating))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and DifficultyWalking
+table(updated_heart$HadHeartAttack, updated_heart$DifficultyWalking)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$DifficultyWalking))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and DifficultyDressingBathing
+table(updated_heart$HadHeartAttack, updated_heart$DifficultyDressingBathing)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$DifficultyDressingBathing))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and DifficultyErrands
+table(updated_heart$HadHeartAttack, updated_heart$DifficultyErrands)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$DifficultyErrands))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and SmokerStatus
+table(updated_heart$HadHeartAttack, updated_heart$SmokerStatus)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$SmokerStatus))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and ECigaretteUsage
+table(updated_heart$HadHeartAttack, updated_heart$ECigaretteUsage)
+fisher.test(table(updated_heart$HadHeartAttack, updated_heart$ECigaretteUsage))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and ChestScan
+table(updated_heart$HadHeartAttack, updated_heart$ChestScan)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$ChestScan))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and RaceEthnicityCategory
+table(updated_heart$HadHeartAttack, updated_heart$RaceEthnicityCategory)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$RaceEthnicityCategory))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and AgeCategory
+table(updated_heart$HadHeartAttack, updated_heart$AgeCategory)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$AgeCategory))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and AlcoholDrinkers
+table(updated_heart$HadHeartAttack, updated_heart$AlcoholDrinkers)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$AlcoholDrinkers))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HIVTesting
+table(updated_heart$HadHeartAttack, updated_heart$HIVTesting)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HIVTesting))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and FluVaxLast12
+table(updated_heart$HadHeartAttack, updated_heart$FluVaxLast12)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$FluVaxLast12))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and PneumoVaxEver
+table(updated_heart$HadHeartAttack, updated_heart$PneumoVaxEver)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$PneumoVaxEver))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and TetanusLast10Tdap
+table(updated_heart$HadHeartAttack, updated_heart$TetanusLast10Tdap)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$TetanusLast10Tdap))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and HighRiskLastYear
+table(updated_heart$HadHeartAttack, updated_heart$HighRiskLastYear)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$HighRiskLastYear))
+```
+
+```{r}
+#Testing for correlation between target variable (HadHeartAttack) and CovidPos
+table(updated_heart$HadHeartAttack, updated_heart$CovidPos)
+chisq.test(table(updated_heart$HadHeartAttack, updated_heart$CovidPos))
+```
+
+HadHeartAttack shows dependence on all the categorical variables, due the occurence of p-values of less than 0.05 in all the tests.
+
+
+### 2.2.2 Numerical Analysis
+
+# 2.1 Principal Component Analysis(PCA)
+
+```{r}
+
+num_heart<-subset(updated_heart, select=c("HeightInMeters","WeightInKilograms", "BMI", "PhysicalHealthDays", "MentalHealthDays","SleepHours") )
+
+# perform PCA and scale before analysis
+pc_heart<- prcomp(num_heart, center = T, scale. = T)
+summary(pc_heart)
+```
+
+```{r}
+# calculate total variance explained by each principal component
+var_pc_heart <- pc_heart$sdev^2
+var_pc_heart
+
+# proportion of variance
+pc_heart_PVE <- var_pc_heart / sum(var_pc_heart)
+pc_heart_PVE
+
+```
+
+```{r}
+# plot the variance per PC 
+plot(pc_heart_PVE, xlab = "principal component",
+            ylab = "Proportion of Variance Explained",
+            ylim = c(0, 1), type = "b",
+            main = "Scree Plot")
+```
+
+```{r}
+
+#calculate the cumulative proportion of variance 
+cumsum(pc_heart_PVE)
+
+# plot the cumulative PVE for first 3 PCs
+
+plot(cumsum(pc_heart_PVE),
+    xlab = "Principal Component",
+    ylab = "Cumulative PEV",
+    ylim = c(0, 1), type = "b")
+abline(h = 0.8, col = 'red', lty = 'dashed')
+```
+
+```{r}
+
+# view the loadings for each PC
+pc_heart_loadings <- pc_heart$rotation
+pc_heart_loadings
+
+# plot the loadings for the first three PCs 
+
+opar <- par(no.readonly = TRUE)
+colvector = c("#00AFBB", "#E7B800","#900C3F" , "#31C000", "#001AC0", "#FC4E07")
+labvector = c('PC1', 'PC2', 'PC3','PC4')
+barplot(
+  pc_heart_loadings[,c(1:4)],
+  beside = T,
+  yaxt = 'n',
+  names.arg = labvector,
+  col = colvector,
+  ylim = c(-1,1),
+  border = 'white',
+  ylab = 'loadings'
+)
+axis(2, seq(-1,1,0.1))
+legend(
+  'bottomright',
+  bty = 'n',
+  col = colvector,
+  pch = 15,
+  row.names(pc_heart_loadings)
+)
+par(opar)
+```
+
+```{r}
+# generate a biplot for each pair of PCs 
+fviz_pca_var(pc_heart, col.var = "contrib",axes = c(1, 2), 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+
+fviz_pca_var(pc_heart, col.var = "contrib",axes = c(1, 3), 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+fviz_pca_var(pc_heart, col.var = "contrib",axes = c(1, 4), 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+
+fviz_pca_var(pc_heart, col.var = "contrib",axes = c(2, 3), 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+fviz_pca_var(pc_heart, col.var = "contrib",axes = c(2, 4), 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+fviz_pca_var(pc_heart, col.var = "contrib",axes = c(3, 4), 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+```
+
+### 2.2 Correlation Matrix 
+
+```{r}
+
+#subset numerical variables
+num_heart<-subset(updated_heart, select=c("HeightInMeters", "BMI", "WeightInKilograms", "SleepHours", "PhysicalHealthDays", "MentalHealthDays"))
+
+# calculate the correlation between the numerical variables
+cor(num_heart)
+
+#visualise correlogram
+corrplot(cor(num_heart))
+
+```
+
+WeightInKilograms and BMI show a high positive correlation of 0.83 and considering BMI is calculated using height and weight, both the variables will be removed and only BMI will be used for the modelling.
+
+```{r}
+
+# Remove the HeightInMeters and WeightInKilograms columns
+updated_heart <- subset(updated_heart, select = -c(HeightInMeters, WeightInKilograms))
+colnames(updated_heart)
+```
+
+# 3. Random Forest Modelling
+
+```{r}
+# create a 70/30 training/test split
+
+#get the number of rows in updated_heart
+n_rows <- nrow(updated_heart)
+
+# sample 70% (n_rows * 0.7) rows in the ranges 1:nrows
+training_idx <- sample(n_rows, n_rows * 0.7)
+
+# filter updated_heart with the train and test split
+training_heartAttack <- updated_heart[training_idx,]
+test_heartAttack <- updated_heart[-training_idx,]
+
+# check the size of the two data sets
+dim(training_heartAttack)
+dim(test_heartAttack)
+```
+## Random Forest Training
+
+###MODEL 1
+```{r}
+# feature selection using randomForest
+
+#train first random forest model
+rf_1<-randomForest(HadHeartAttack~., training_heartAttack, ntree=500, importance = T)
+
+# calculate variable importance 
+varImp(rf_1)
+
+# extract the variable importance values and store in a data frame
+importance <- importance(rf_1)
+
+varImportance <- data.frame(Variables = row.names(importance), 
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+
+# create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+
+# visualise the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, Importance + 0.02, label = Rank),
+            hjust=0, vjust=0.55, size = 3.5, colour = 'black') +
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_classic()
+```
+
+
+```{r}
+# handle data imbalance
+
+# balance training set with over-sampling 
+training_heartAttack_balanced <- ovun.sample(HadHeartAttack~., data=training_heartAttack, 
+                                  p=0.5, seed=1, 
+                                  method="over")$data
+
+#visualise HadHeartAttack variable
+ggplot(training_heartAttack_balanced,aes(x=HadHeartAttack, fill=HadHeartAttack) ) + 
+  geom_bar() +
+  ggtitle("Over-sampling HadHeartAttack") +
+  xlab("HadHeartAttack") +
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "BLACK")
+```
+###Model 2
+```{r}
+# train third model using the balanced dataset
+
+# define a formula for predicting heart attack using the top 15 features
+heart_attack_formula =  HadHeartAttack ~ HadAngina + BMI + SleepHours + TetanusLast10Tdap +  GeneralHealth + PhysicalHealthDays + MentalHealthDays + AgeCategory  + RemovedTeeth +RaceEthnicityCategory +SmokerStatus + HadStroke + Sex + AlcoholDrinkers + FluVaxLast12 
+
+# train a random forest model
+rf_2 <- randomForest(heart_attack_formula, ntree = 500, data = training_heartAttack_balanced)
+```
+
+
+
+## Random forest prediction
+
+###Model 1
+```{r}
+# test first model
+# create a data frame with actual and predicted values 
+
+heart_attack_pred1 <- data.frame(
+  actual = test_heartAttack$HadHeartAttack,
+  
+  # compute the prediction for the test set with the first random forest model
+  predicted = predict(rf_1, test_heartAttack[, -9], type = 'class'),
+  predict(rf_1, test_heartAttack[, -9], type = 'prob'))
+
+```
+
+###Model 2
+```{r}
+# test second model
+#create a data frame with actual and predicted values 
+
+heart_attack_pred2 <- data.frame(
+  actual = test_heartAttack$HadHeartAttack,
+  
+  # compute the prediction for the test set with the 2nd random forest model
+  predicted = predict(rf_2, test_heartAttack[, -9], type = 'class'),
+  predict(rf_2, test_heartAttack[, -9], type = 'prob'))
+```
+
+
+#Performance Evaluation
+```{r}
+
+# Create a confusion matrix object
+rf_cm1 <- caret::confusionMatrix(heart_attack_pred1$predicted, heart_attack_pred1$actual,
+                       positive = "1")
+rf_cm2 <- caret::confusionMatrix(heart_attack_pred2$predicted, heart_attack_pred2$actual,
+                       positive = "1")
+
+# Print confusion matrix
+rf_cm1
+rf_cm2 
+
+
+# create a data frame with the probability scores for predicting 1
+
+heart_models_prob <- data.frame(
+  Model_1 = heart_attack_pred1[,4],
+  Model_2 = heart_attack_pred2[,4]
+ 
+)
+# create a data frame with actual values 
+heart_label <- data.frame(
+  Model_1 = heart_attack_pred1$actual == 1,
+  Model_2 = heart_attack_pred2$actual == 1
+  
+)
+# create prediction and performance objects
+heart_ROC_pred = prediction(heart_models_prob, heart_label)
+heart_ROC_perf = performance(heart_ROC_pred, "tpr", "fpr")
+
+# plot the ROC curve 
+opar <- par(no.readonly = TRUE)
+par(pty = 's')
+plot(
+ heart_ROC_perf,
+ col = as.list(c("orange", "blue","red","green"))
+)
+abline(a = 0, b = 1, lty = 2, col = 'red')
+legend(
+  "bottomright",
+  names(heart_models_prob),
+  col = c("orange", "blue","red","green"),
+  lty = 1,
+  bty = 'n'
+)
+# Calculate AUC
+heart_ROC_auc <- performance(heart_ROC_pred, "auc")
+
+
+# Extract AUC values
+auc_values <- unlist(slot(heart_ROC_auc, "y.values"))
+
+# Label AUC values on plot
+text(0.5, 0.6, paste("AUC 1 =", round(auc_values[1], 2)), adj = c(0.5, -0.5))
+text(0.5, 0.5, paste("AUC 2 =", round(auc_values[2], 2)), adj = c(0.5, -0.5))
+
+
+```
+
+
+
+
